@@ -1,7 +1,7 @@
 
 class SeverTemplate(object):
 
-    def __init__(self, data=dict):
+    def __init__(self, data: dict):
         self.id = data['id']
         self.name = data['name']
         self.image = data['image']
@@ -17,7 +17,7 @@ class SeverTemplate(object):
 
 
 class ServerGroup(object):
-    def __init__(self, data=dict):
+    def __init__(self, data: dict):
         self.id = data['id']
         self.name = data['name']
         self.type = data['type']
@@ -31,7 +31,7 @@ class ServerGroup(object):
 
 
 class DataCenter(object):
-    def __init__(self, data=dict):
+    def __init__(self, data: dict):
         self.id = data['id']
         self.name = data['name']
         self.country = data['country']
@@ -43,7 +43,7 @@ class DataCenter(object):
 
 
 class Account(object):
-    def __init__(self, data):
+    def __init__(self, data: dict):
         self.id = data['account']['id']
         self.name = data['account']['name']
         self.created_date = data['created']
@@ -55,3 +55,31 @@ class Account(object):
     def __str__(self):
         return self.name
 
+
+class ServerPlan(object):
+    class ServerPlanBackup(object):
+        def __init__(self, data: dict):
+            self.cost = data['cost']
+            self.unit = data['for']
+            self.full_cost = data['full_cost']
+            self.period = data['period']
+            self.period_name = data['period_name']
+
+    def __init__(self, data: dict):
+        self.active = data['active']
+        self.backup = self.ServerPlanBackup(data['backup'])
+        self.can_bonus = data['can_bonus']
+        self.cost = data['cost']
+        self.server_data = data['data']
+        self.description = data['description']
+        self.enable = data['enable']
+        self.full_cost = data['full_cost']
+        self.has_params = data['has_params']
+        self.id = data['id']
+        self.min_money = data['min_money']
+        self.name = data['name']
+        self.params = data['params']
+        self.period = data['period']
+        self.period_name = data['period_name']
+        self.selected = data['selected']
+        self.server_group = data['server-group']

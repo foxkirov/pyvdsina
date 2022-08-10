@@ -1,5 +1,5 @@
 import requests
-from .templates import SeverTemplate, DataCenter, Account
+from .templates import SeverTemplate, DataCenter, Account, ServerGroup, ServerPlan
 
 
 class ApiException(Exception):
@@ -16,8 +16,6 @@ def check_errors(_func):
 
     def wrapper(self, *args, **kwargs):
         response = _func(self, *args, **kwargs)
-        if self.debug:
-            print(response.status_msg)
 
         if response.status == 'error':
             raise ApiException(f'{response.status_code} {response.status_msg}')
@@ -32,8 +30,8 @@ def check_errors(_func):
 
 
 class Api(object):
-    api_url = 'https://userapi.vdsina.ru/v1'
-    p_code = 'kt2rbwyjh8'
+    __api_url = 'https://userapi.vdsina.ru/v1'
+    __p_code = 'kt2rbwyjh8'
     balance = None
     bonus = None
     partner = None
@@ -41,7 +39,7 @@ class Api(object):
     def __init__(self, api_token, debug=False):
         self.api_token = api_token
         self.debug = debug
-        self.headers = {'Authorization': self.api_token, 'Content-Type': 'application/json'}
+        self.__headers = {'Authorization': self.api_token, 'Content-Type': 'application/json'}
         self.account = self.__get_account()
         self.update_balance()
 
@@ -54,7 +52,7 @@ class Api(object):
     @check_errors
     def __get_info(self):
         endpoint = '/account'
-        r = requests.get(url=self.api_url + endpoint, headers=self.headers)
+        r = requests.get(url=self.__api_url + endpoint, headers=self.__headers)
         return Resp(**r.json())
 
     def __get_account(self):
@@ -64,34 +62,42 @@ class Api(object):
     @check_errors
     def __get_balance(self):
         endpoint = '/account.balance'
-        r = requests.get(url=self.api_url + endpoint, headers=self.headers)
+        r = requests.get(url=self.__api_url + endpoint, headers=self.__headers)
         return Resp(**r.json())
 
     @check_errors
     def get_limits(self):
         endpoint = '/account.limit'
-        r = requests.get(url=self.api_url + endpoint, headers=self.headers)
+        r = requests.get(url=self.__api_url + endpoint, headers=self.__headers)
         return Resp(**r.json())
 
     @check_errors
     def register_new_account(self, email):
         endpoint = '/register'
         params = {"email": email,
-                  "code": self.p_code}
+                  "code": self.__p_code}
 
-        r = requests.post(url=self.api_url + endpoint, headers=self.headers, json=params)
+        r = requests.post(url=self.__api_url + endpoint, headers=self.__headers, json=params)
         return Resp(**r.json())
 
     @check_errors
-    def get_server_groups(self):
+    def __get_server_groups(self):
         endpoint = '/server-group'
-        r = requests.get(url=self.api_url + endpoint, headers=self.headers)
+        r = requests.get(url=self.__api_url + endpoint, headers=self.__headers)
         return Resp(**r.json())
+
+    def get_server_groups(self):
+        data = []
+        groups_list = self.__get_server_groups()
+        for group in groups_list:
+            data.append(ServerGroup(group))
+
+        return data
 
     @check_errors
     def __get_dc_list(self):
         endpoint = '/datacenter'
-        r = requests.get(url=self.api_url + endpoint, headers=self.headers)
+        r = requests.get(url=self.__api_url + endpoint, headers=self.__headers)
         return Resp(**r.json())
 
     def get_dc_list(self):
@@ -105,7 +111,7 @@ class Api(object):
     @check_errors
     def __get_templates(self):
         endpoint = '/template'
-        r = requests.get(url=self.api_url + endpoint, headers=self.headers)
+        r = requests.get(url=self.__api_url + endpoint, headers=self.__headers)
         return Resp(**r.json())
 
     def get_templates(self):
@@ -113,5 +119,19 @@ class Api(object):
         templates = self.__get_templates()
         for template in templates:
             data.append(SeverTemplate(template))
+
+        return data
+
+    @check_errors
+    def __get_server_plans(self, group: ServerGroup):
+        endpoint = f'/server-plan/{group.id}'
+        r = requests.get(url=self.__api_url + endpoint, headers=self.__headers)
+        return Resp(**r.json())
+
+    def get_server_plans(self, group: ServerGroup):
+        data = []
+        server_plans = self.__get_server_plans(group)
+        for plan in server_plans:
+            data.append(ServerPlan(plan))
 
         return data
