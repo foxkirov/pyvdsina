@@ -1,6 +1,7 @@
 import requests
-from .templates import Resp, ServerTemplate, DataCenter, Account, ServerGroup, ServerPlan, Server, NewServer
+from .templates import Resp, ServerTemplate, DataCenter, Account, ServerGroup, ServerPlan, Server
 import json
+
 
 class ApiException(Exception):
     def __init__(self, *args, **kwargs):
