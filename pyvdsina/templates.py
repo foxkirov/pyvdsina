@@ -1,5 +1,9 @@
+class Resp:
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
 
-class SeverTemplate(object):
+
+class ServerTemplate(object):
 
     def __init__(self, data: dict):
         self.id = data['id']
@@ -78,8 +82,44 @@ class ServerPlan(object):
         self.id = data['id']
         self.min_money = data['min_money']
         self.name = data['name']
-        self.params = data['params']
+        self.params = data['params'] if 'params' in data.keys() else None
         self.period = data['period']
         self.period_name = data['period_name']
         self.selected = data['selected']
         self.server_group = data['server-group']
+
+    def __str__(self):
+        return self.name
+
+
+class SSHKey(object):
+    def __init__(self, name=None, data=None, key_id=None):
+        self.key_id = key_id
+        self.name = name
+        self.data = data
+
+
+class Server(object):
+    def __init__(self, data: dict):
+        self.id = data['id']
+        self.name = data['name']
+        self.status = data['status']
+        self.created = data['created']
+        self.updated = data['updated']
+        self.end = data['end']
+        self.autoprolong = data['autoprolong']
+        self.ip = data['ip']
+        self.ip_local = data['ip_local']
+        self.host = data['host']
+        self.data = data['data']
+        self.server_plan = data['server-plan']
+        self.server_group = data['server-group']
+        self.template = data['template']
+        self.datacenter = data['datacenter']
+        self.ssh_key = data['ssh-key']
+        self.can = data['can']
+        self.bandwidth = data['bandwidth']
+
+    def __str__(self):
+        return str(self.id)
+
