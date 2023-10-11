@@ -2,6 +2,7 @@ import requests
 from .templates import Resp, ServerTemplate, DataCenter, Account, ServerGroup, ServerPlan, Server
 import json
 import logging
+from typing import Union
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,11 @@ def check_errors(_func):
         response = _func(self, *args, **kwargs)
 
         if response.status == 'error':
+            logger.error(f'ApiException {response.status_code} {response.status_msg}')
             raise ApiException(f'{response.status_code} {response.status_msg}')
 
         else:
-            logging.debug(f'{response.status_msg}: {response.data}')
+            logger.debug(f'{response.status_msg}: {response.data}')
 
             return response.data
 
@@ -111,7 +113,7 @@ class Api(object):
             if dc.id == dc_id:
                 return dc
 
-        return None
+        raise ApiException('DC not found')
 
     @check_errors
     def _get_templates(self):
@@ -133,7 +135,7 @@ class Api(object):
             if template.id == template_id:
                 return template
 
-        return None
+        raise ApiException('Template not found')
 
     @check_errors
     def _get_server_plans(self, group: ServerGroup):
@@ -157,7 +159,7 @@ class Api(object):
                 if plan.id == plan_id:
                     return plan
 
-        return None
+        raise ApiException('Server plan not found')
 
     def get_ssh_keys(self):
         endpoint = '/ssh-key'
@@ -191,15 +193,49 @@ class Api(object):
         r = requests.post(url=self._api_url + endpoint, headers=self._headers, data=json.dumps(params))
         return Resp(**r.json())
 
-    def simple_create_server(self, dc_id: int, server_plan_id: int, template_id: int):
-        new_server_data = self._post_server(datacenter_id=dc_id,
-                                            server_plan_id=server_plan_id,
-                                            template_id=template_id)
-        new_server = self._get_server(server_id=new_server_data["id"])
+    def create_server(self,
+                      datacenter: Union[DataCenter, str],
+                      server_plan: Union[ServerPlan, int],
+                      template: Union[ServerTemplate, int]) -> Server:
+        """
+        :param datacenter: (pyvdsina.Datacenter | str) - datacenter or country code to create
+        :param server_plan: (pyvdsina.ServerPlan | int) - server plan or server plan id to create
+        :param template: (pyvdsina.ServerTemplate | int) - server template or server template id to create
+        :return: pyvdsina.Server - created server
+        """
 
-        return Server(new_server)
+        if isinstance(datacenter, str):
+            dc_list = self.get_dc_list()
+            for dc in dc_list:
+                if dc.country == datacenter:
+                    datacenter = dc
+                    break
 
-    def create_server(self, datacenter: DataCenter, server_plan: ServerPlan, template: ServerTemplate):
+            if isinstance(datacenter, str):
+                raise ApiException('No datacenter named {}'.format(datacenter))
+
+        if isinstance(server_plan, int):
+            server_groups = self.get_server_groups()
+            for group in server_groups:
+                server_plan_list = self.get_server_plans(group=group)
+                for plan in server_plan_list:
+                    if plan.id == server_plan:
+                        server_plan = plan
+                        break
+
+            if isinstance(server_plan, int):
+                raise ApiException('No server plan with id {}'.format(server_plan))
+
+        if isinstance(template, int):
+            template_list = self.get_templates()
+            for _template in template_list:
+                if _template.id == template:
+                    template = _template
+                    break
+
+            if isinstance(template, int):
+                raise ApiException('No template with id {}'.format(template))
+
         new_server_data = self._post_server(datacenter_id=datacenter.id,
                                             server_plan_id=server_plan.id,
                                             template_id=template.id)
@@ -213,10 +249,7 @@ class Api(object):
         r = requests.delete(url=self._api_url + endpoint, headers=self._headers)
         return Resp(**r.json())
 
-    def simple_delete_server(self, server_id: int):
-        data = self._delete_server(server_id=server_id)
-        return True
+    def delete_server(self, server: Union[Server, int]) -> bool:
 
-    def delete_server(self, server: Server):
-        data = self._delete_server(server.id)
+        data = self._delete_server(server.id if isinstance(server, Server) else server)
         return True
