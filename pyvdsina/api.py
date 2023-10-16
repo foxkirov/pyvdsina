@@ -1,5 +1,5 @@
 import requests
-from .templates import Resp, ServerTemplate, DataCenter, Account, ServerGroup, ServerPlan, Server
+from .templates import Resp, ServerTemplate, DataCenter, Account, ServerGroup, ServerPlan, Server, SSHKey
 import json
 import logging
 from typing import Union
@@ -8,8 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class ApiException(Exception):
-    def __init__(self, *args, **kwargs):
-        pass
+    pass
 
 
 def check_errors(_func):
@@ -17,11 +16,11 @@ def check_errors(_func):
         response = _func(self, *args, **kwargs)
 
         if response.status == 'error':
-            logger.error(f'ApiException {response.status_code} {response.status_msg}')
-            raise ApiException(f'{response.status_code} {response.status_msg}')
+            logger.error('ApiException {} {}'.format(response.status_code, response.status_msg))
+            raise ApiException('{} {}'.format(response.status_code, response.status_msg))
 
         else:
-            logger.debug(f'{response.status_msg}: {response.data}')
+            logger.debug('{}: {}'.format(response.status_msg, response.data))
 
             return response.data
 
@@ -139,7 +138,7 @@ class Api(object):
 
     @check_errors
     def _get_server_plans(self, group: ServerGroup):
-        endpoint = f'/server-plan/{group.id}'
+        endpoint = '/server-plan/{}'.format(group.id)
         r = requests.get(url=self._api_url + endpoint, headers=self._headers)
         return Resp(**r.json())
 
@@ -161,10 +160,32 @@ class Api(object):
 
         raise ApiException('Server plan not found')
 
-    def get_ssh_keys(self):
+    @check_errors
+    def _get_ssh_keys(self):
         endpoint = '/ssh-key'
         r = requests.get(url=self._api_url + endpoint, headers=self._headers)
         return Resp(**r.json())
+
+    def get_ssh_keys(self):
+        data = []
+        ssh_keys = self._get_ssh_keys()
+        for ssh_key in ssh_keys:
+            data.append(SSHKey(key_id=ssh_key['id'], name=ssh_key['name']))
+        return data
+
+    def get_ssh_key(self, key: Union[int, str]):
+        ssh_keys = self._get_ssh_keys()
+        if isinstance(key, int):
+            for ssh_key in ssh_keys:
+                if ssh_key.key_id == key:
+                    return ssh_key
+
+        else:
+            for ssh_key in ssh_keys:
+                if ssh_key.name == key:
+                    return ssh_key
+
+        raise ApiException('Key not found')
 
     @check_errors
     def _get_servers(self):
@@ -174,7 +195,7 @@ class Api(object):
 
     @check_errors
     def _get_server(self, server_id: int):
-        endpoint = f'/server/{server_id}'
+        endpoint = '/server/{}'.format(server_id)
         r = requests.get(url=self._api_url + endpoint, headers=self._headers)
         return Resp(**r.json())
 
@@ -187,20 +208,26 @@ class Api(object):
         return data
 
     @check_errors
-    def _post_server(self, datacenter_id: int, server_plan_id: int, template_id: int):
+    def _post_server(self, datacenter_id: int, server_plan_id: int, template_id: int, ssh_key: SSHKey = None):
         endpoint = f'/server'
         params = {"datacenter": datacenter_id, "server-plan": server_plan_id, "template": template_id}
+
+        if ssh_key:
+            params['ssh-key'] = ssh_key.key_id
+
         r = requests.post(url=self._api_url + endpoint, headers=self._headers, data=json.dumps(params))
         return Resp(**r.json())
 
     def create_server(self,
                       datacenter: Union[DataCenter, str],
                       server_plan: Union[ServerPlan, int],
-                      template: Union[ServerTemplate, int]) -> Server:
+                      template: Union[ServerTemplate, int],
+                      ssh_key: Union[SSHKey, int] = None) -> Server:
         """
         :param datacenter: (pyvdsina.Datacenter | str) - datacenter or country code to create
         :param server_plan: (pyvdsina.ServerPlan | int) - server plan or server plan id to create
         :param template: (pyvdsina.ServerTemplate | int) - server template or server template id to create
+        :param ssh_key:
         :return: pyvdsina.Server - created server
         """
 
@@ -236,20 +263,36 @@ class Api(object):
             if isinstance(template, int):
                 raise ApiException('No template with id {}'.format(template))
 
+        if isinstance(ssh_key, int):
+            ssh_key_list = self.get_ssh_keys()
+            for key in ssh_key_list:
+                if key.key_id == ssh_key:
+                    ssh_key = key.key_id
+                    break
+
+            if isinstance(ssh_key, int):
+                raise ApiException('No ssh key with id {}'.format(ssh_key))
+
         new_server_data = self._post_server(datacenter_id=datacenter.id,
                                             server_plan_id=server_plan.id,
-                                            template_id=template.id)
+                                            template_id=template.id,
+                                            ssh_key=ssh_key)
         new_server = self._get_server(server_id=new_server_data["id"])
 
         return Server(new_server)
 
     @check_errors
     def _delete_server(self, server_id: int):
-        endpoint = f'/server/{server_id}'
+        endpoint = '/server/{}'.format(server_id)
         r = requests.delete(url=self._api_url + endpoint, headers=self._headers)
         return Resp(**r.json())
 
     def delete_server(self, server: Union[Server, int]) -> bool:
+        """
+
+        :param server: (pyvdsina.Server | int) - server to delete
+        :return:
+        """
 
         data = self._delete_server(server.id if isinstance(server, Server) else server)
         return True
