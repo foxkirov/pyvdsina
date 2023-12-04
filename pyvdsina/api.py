@@ -1,112 +1,43 @@
-import requests
-from .templates import Resp, ServerTemplate, DataCenter, Account, ServerGroup, ServerPlan, Server, SSHKey
-import json
+from .templates import ServerTemplate, DataCenter, Account, ServerGroup, ServerPlan, Server, SSHKey
+from .baseapi import BaseApi, ApiException
 import logging
-from typing import Union
+from typing import Union, List
 
 logger = logging.getLogger(__name__)
 
 
-class ApiException(Exception):
-    pass
-
-
-def check_errors(_func):
-    def wrapper(self, *args, **kwargs):
-        response = _func(self, *args, **kwargs)
-
-        if response.status == 'error':
-            logger.error('ApiException {} {}'.format(response.status_code, response.status_msg))
-            raise ApiException('{} {}'.format(response.status_code, response.status_msg))
-
-        else:
-            logger.debug('{}: {}'.format(response.status_msg, response.data))
-
-            return response.data
-
-    return wrapper
-
-
-class Api(object):
-    _api_url = 'https://userapi.vdsina.ru/v1'
-    _p_code = 'kt2rbwyjh8'
-    balance = None
-    bonus = None
-    partner = None
-
+class Api(BaseApi):
     def __init__(self, api_token, debug=False):
-        self.api_token = api_token
-        self.debug = debug
-        self._headers = {'Authorization': self.api_token, 'Content-Type': 'application/json'}
-        self.account = self._get_account()
-        self.update_balance()
-
-    def update_balance(self):
-        balance = self._get_balance()
+        super().__init__(api_token, debug)
+        self.account = Account(self.get('/account'))
+        balance = self.get('/account.balance')
         self.balance = balance['real']
         self.bonus = balance['bonus']
         self.partner = balance['partner']
 
-    @check_errors
-    def _get_info(self):
-        endpoint = '/account'
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    def _get_account(self):
-        account = self._get_info()
-        return Account(account)
-
-    @check_errors
-    def _get_balance(self):
-        endpoint = '/account.balance'
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    @check_errors
     def get_limits(self):
-        endpoint = '/account.limit'
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
+        return self.get('/account.limit')
 
-    @check_errors
     def register_new_account(self, email):
-        endpoint = '/register'
-        params = {"email": email,
-                  "code": self._p_code}
+        return self.post('/register', email=email, code=self._p_code)
 
-        r = requests.post(url=self._api_url + endpoint, headers=self._headers, json=params)
-        return Resp(**r.json())
-
-    @check_errors
-    def _get_server_groups(self):
-        endpoint = '/server-group'
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    def get_server_groups(self):
+    def get_server_groups(self) -> List[ServerGroup]:
         data = []
-        groups_list = self._get_server_groups()
+        groups_list = self.get('/server-group')
         for group in groups_list:
             data.append(ServerGroup(group))
 
         return data
 
-    @check_errors
-    def _get_dc_list(self):
-        endpoint = '/datacenter'
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    def get_dc_list(self):
+    def get_dc_list(self) -> List[DataCenter]:
         data = []
-        dc_list = self._get_dc_list()
+        dc_list = self.get('/datacenter')
         for dc in dc_list:
             data.append(DataCenter(dc))
 
         return data
 
-    def get_dc(self, dc_id):
+    def get_dc(self, dc_id) -> DataCenter:
         dc_list = self.get_dc_list()
         for dc in dc_list:
             if dc.id == dc_id:
@@ -114,21 +45,15 @@ class Api(object):
 
         raise ApiException('DC not found')
 
-    @check_errors
-    def _get_templates(self):
-        endpoint = '/template'
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    def get_templates(self):
+    def get_templates(self) -> List[ServerTemplate]:
         data = []
-        templates = self._get_templates()
+        templates = self.get('/template')
         for template in templates:
             data.append(ServerTemplate(template))
 
         return data
 
-    def get_template(self, template_id: int):
+    def get_template(self, template_id: int) -> ServerTemplate:
         templates_list = self.get_templates()
         for template in templates_list:
             if template.id == template_id:
@@ -136,21 +61,15 @@ class Api(object):
 
         raise ApiException('Template not found')
 
-    @check_errors
-    def _get_server_plans(self, group: ServerGroup):
-        endpoint = '/server-plan/{}'.format(group.id)
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    def get_server_plans(self, group: ServerGroup):
+    def get_server_plans(self, group: ServerGroup) -> List[ServerPlan]:
         data = []
-        server_plans = self._get_server_plans(group)
+        server_plans = self.get('/server-plan/{}'.format(group.id))
         for plan in server_plans:
             data.append(ServerPlan(plan))
 
         return data
 
-    def get_server_plan(self, plan_id: int):
+    def get_server_plan(self, plan_id: int) -> ServerPlan:
         server_groups = self.get_server_groups()
         for group in server_groups:
             server_plans = self.get_server_plans(group=group)
@@ -160,21 +79,15 @@ class Api(object):
 
         raise ApiException('Server plan not found')
 
-    @check_errors
-    def _get_ssh_keys(self):
-        endpoint = '/ssh-key'
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    def get_ssh_keys(self):
+    def get_ssh_keys(self) -> List[SSHKey]:
         data = []
-        ssh_keys = self._get_ssh_keys()
+        ssh_keys = self.get('/ssh-key')
         for ssh_key in ssh_keys:
             data.append(SSHKey(key_id=ssh_key['id'], name=ssh_key['name']))
         return data
 
-    def get_ssh_key(self, key: Union[int, str]):
-        ssh_keys = self._get_ssh_keys()
+    def get_ssh_key(self, key: Union[int, str]) -> SSHKey:
+        ssh_keys = self.get('/ssh-key')
         if isinstance(key, int):
             for ssh_key in ssh_keys:
                 if ssh_key.key_id == key:
@@ -187,36 +100,17 @@ class Api(object):
 
         raise ApiException('Key not found')
 
-    @check_errors
-    def _get_servers(self):
-        endpoint = '/server'
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    @check_errors
-    def _get_server(self, server_id: int):
-        endpoint = '/server/{}'.format(server_id)
-        r = requests.get(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
-    def get_servers(self):
+    def get_servers(self) -> List[Server]:
         data = []
-        servers = self._get_servers()
+        servers = self.get('/server')
         for server in servers:
-            server_data = self._get_server(server['id'])
+            server_data = self.get('/server/{}'.format(server['id']))
             data.append(Server(server_data))
         return data
 
-    @check_errors
-    def _post_server(self, datacenter_id: int, server_plan_id: int, template_id: int, ssh_key: SSHKey = None):
-        endpoint = f'/server'
-        params = {"datacenter": datacenter_id, "server-plan": server_plan_id, "template": template_id}
-
-        if ssh_key:
-            params['ssh-key'] = ssh_key.key_id
-
-        r = requests.post(url=self._api_url + endpoint, headers=self._headers, data=json.dumps(params))
-        return Resp(**r.json())
+    def get_server(self, server_id: int) -> Server:
+        data = self.get('/server/{}'.format(server_id))
+        return Server(data)
 
     def create_server(self,
                       datacenter: Union[DataCenter, str],
@@ -227,10 +121,9 @@ class Api(object):
         :param datacenter: (pyvdsina.Datacenter | str) - datacenter or country code to create
         :param server_plan: (pyvdsina.ServerPlan | int) - server plan or server plan id to create
         :param template: (pyvdsina.ServerTemplate | int) - server template or server template id to create
-        :param ssh_key:
+        :param ssh_key: (pyvdsina.SSHKey | int) - optional ssh key or ssh key id to create
         :return: pyvdsina.Server - created server
         """
-
         if isinstance(datacenter, str):
             dc_list = self.get_dc_list()
             for dc in dc_list:
@@ -267,32 +160,24 @@ class Api(object):
             ssh_key_list = self.get_ssh_keys()
             for key in ssh_key_list:
                 if key.key_id == ssh_key:
-                    ssh_key = key.key_id
+                    ssh_key = key
                     break
 
             if isinstance(ssh_key, int):
                 raise ApiException('No ssh key with id {}'.format(ssh_key))
 
-        new_server_data = self._post_server(datacenter_id=datacenter.id,
-                                            server_plan_id=server_plan.id,
-                                            template_id=template.id,
-                                            ssh_key=ssh_key)
-        new_server = self._get_server(server_id=new_server_data["id"])
+        new_server_data = self.post('/server',
+                                    datacenter=datacenter.id,
+                                    server_plan=server_plan.id,
+                                    template=template.id, ssh_key=ssh_key.key_id if ssh_key else None)
+        new_server = self.get('/server/{}'.format(new_server_data['id']))
 
         return Server(new_server)
 
-    @check_errors
-    def _delete_server(self, server_id: int):
-        endpoint = '/server/{}'.format(server_id)
-        r = requests.delete(url=self._api_url + endpoint, headers=self._headers)
-        return Resp(**r.json())
-
     def delete_server(self, server: Union[Server, int]) -> bool:
         """
-
         :param server: (pyvdsina.Server | int) - server to delete
-        :return:
+        :return: boolean - True if server was deleted
         """
-
-        data = self._delete_server(server.id if isinstance(server, Server) else server)
+        data = self.delete('/server/{}'.format(server.id if isinstance(server, Server) else server))
         return True
