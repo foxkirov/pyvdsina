@@ -7,6 +7,8 @@ logger = logging.getLogger(__name__)
 
 
 class Api(BaseApi):
+    _p_code = 'kt2rbwyjh8'
+
     def __init__(self, api_token, debug=False):
         super().__init__(api_token, debug)
         self.account = Account(self.get('/account'))
@@ -18,7 +20,7 @@ class Api(BaseApi):
     def get_limits(self):
         return self.get('/account.limit')
 
-    def register_new_account(self, email):
+    def register_new_account(self, email: str):
         return self.post('/register', email=email, code=self._p_code)
 
     def get_server_groups(self) -> List[ServerGroup]:
@@ -37,7 +39,7 @@ class Api(BaseApi):
 
         return data
 
-    def get_dc(self, dc_id) -> DataCenter:
+    def get_dc(self, dc_id: int) -> DataCenter:
         dc_list = self.get_dc_list()
         for dc in dc_list:
             if dc.id == dc_id:
@@ -179,5 +181,5 @@ class Api(BaseApi):
         :param server: (pyvdsina.Server | int) - server to delete
         :return: boolean - True if server was deleted
         """
-        data = self.delete('/server/{}'.format(server.id if isinstance(server, Server) else server))
+        self.delete('/server/{}'.format(server.id if isinstance(server, Server) else server))
         return True
