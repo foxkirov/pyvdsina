@@ -9,9 +9,12 @@ logger = logging.getLogger(__name__)
 class Api(BaseApi):
     _p_code = 'kt2rbwyjh8'
 
-    def __init__(self, api_token, debug=False):
+    def __init__(self, api_token: str, debug: bool = False):
         super().__init__(api_token, debug)
         self.account = Account(self.get('/account'))
+        self.update_balance()
+
+    def update_balance(self):
         balance = self.get('/account.balance')
         self.balance = balance['real']
         self.bonus = balance['bonus']
@@ -89,7 +92,7 @@ class Api(BaseApi):
         return data
 
     def get_ssh_key(self, key: Union[int, str]) -> SSHKey:
-        ssh_keys = self.get('/ssh-key')
+        ssh_keys = self.get_ssh_keys()
         if isinstance(key, int):
             for ssh_key in ssh_keys:
                 if ssh_key.key_id == key:
@@ -101,6 +104,19 @@ class Api(BaseApi):
                     return ssh_key
 
         raise ApiException('Key not found')
+
+    def create_ssh_key(self, key: SSHKey) -> SSHKey:
+        ssh_key = self.post('/ssh-key', name=key.name, data=key.data)
+        return SSHKey(ssh_key)
+
+    def change_ssh_key(self, key: SSHKey) -> SSHKey:
+        ssh_key = self.put('/ssh-key/{}'.format(key.key_id),
+                           name=key.name, data=key.data)
+        return SSHKey(ssh_key)
+
+    def delete_ssh_key(self, key: Union[int, SSHKey]) -> bool:
+        ssh_key = self.delete('/ssh-key/{}'.format(key.key_id if isinstance(key, SSHKey) else key))
+        return True
 
     def get_servers(self) -> List[Server]:
         data = []
